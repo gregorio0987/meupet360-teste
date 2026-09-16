@@ -5246,7 +5246,7 @@ function renderAccessBlocked(message='Acesso não liberado para este e-mail.'){
 async function hasActiveCommercialAccess(){
  if(!sbClient||!sbSession?.user)return false;
  try{
-  const {data,error}=await sbClient.from('subscriptions').select('status').in('status',['active','test']).limit(1);
+  const {data,error}=await sbClient.from('subscriptions').select('status').eq('user_id',sbSession.user.id).in('status',['active','test']).limit(1);
   if(error)throw error;
   return Array.isArray(data)&&data.length>0;
  }catch(e){console.warn('Validação de acesso:',e);return false}
