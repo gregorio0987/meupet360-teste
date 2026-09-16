@@ -5289,28 +5289,7 @@ async function updateRecoveredPassword(){
     if(msg)msg.textContent='Não foi possível alterar a senha. Solicite um novo link e tente novamente.';
   }
 }
-    const confirmPassword=prompt('Digite novamente a nova senha:');
-    if(newPassword!==confirmPassword){
-      alert('As senhas não coincidem.');
-      return;
-    }
-
-    const {error}=await sbClient.auth.updateUser({
-      password:newPassword
-    });
-
-    if(error){
-      console.error('Erro ao alterar senha:',error);
-      alert('Não foi possível alterar a senha. Solicite um novo link e tente novamente.');
-      return;
-    }
-
-    alert('Senha alterada com sucesso! Você já pode entrar com a nova senha.');
-    await sbClient.auth.signOut();
-    sbSession=null;
-    renderAuth('login');
-  });
-}
+    
   async function ensureRemoteProfile(){if(!sbClient||!sbSession?.user)return;const u=sbSession.user;const fallback=(u.user_metadata&&u.user_metadata.name)||((db.owner&&db.owner.nome)||'Tutor');try{const {data}=await sbClient.from('profiles').select('name,avatar_url,phone').eq('id',u.id).maybeSingle();if(!data){await sbClient.from('profiles').insert({id:u.id,name:fallback})}else{db.owner=db.owner||{};if(data.name)db.owner.nome=data.name;if(data.avatar_url)db.owner.foto=data.avatar_url;if(data.phone!==undefined&&data.phone!==null)db.owner.telefone=data.phone}}catch(e){console.warn('Perfil Supabase:',e)}}
 function isUuid(v=''){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''))}
 function cloudPetFromProfile(profile){const p=(profile&&profile.pet)||{};const cas=String(p.castrado||'').toLowerCase();return {user_id:sbSession.user.id,name:p.nome||'Pet sem nome',species:p.tipo||p.especie||null,breed:p.raca||null,sex:p.sexo||null,birth_date:p.nascimento||null,weight_kg:p.peso?Number(String(p.peso).replace(',','.')):null,color_coat:p.cor||null,neutered:cas==='sim'?true:cas==='não'||cas==='nao'?false:null,microchip:p.microchip||null,veterinarian:p.veterinario||null,veterinarian_phone:p.telefone||null,hospital_24h:p.hospital||null,hospital_24h_phone:p.telefone24||null,insurance_plan:p.plano||null,blood_type:p.tipoSanguineo||null,emergency_contact:p.contatoEmergencia||null,allergies:p.alergias||null,food:p.alimentacao||null,notes:p.observacoes||null,photo_url:p.foto||null,updated_at:new Date().toISOString()}}
