@@ -5273,6 +5273,26 @@ async function checkCommercialAccessAndContinue(){
  }
 }
 async function afterAuth(accessAlreadyChecked=false){
+try{
+  const {data:{session}}=await sbClient.auth.getSession();
+  if(session?.access_token){
+    const res=await fetch(
+      `${SUPABASE_URL}/functions/v1/link-subscription`,
+      {
+        method:'POST',
+        headers:{
+          'Content-Type':'application/json',
+          'Authorization':`Bearer ${session.access_token}`
+        },
+        body:JSON.stringify({})
+      }
+    );
+    const result=await res.json();
+    console.log('LINK SUBSCRIPTION:',result);
+  }
+}catch(e){
+  console.warn('LINK SUBSCRIPTION:',e);
+}  
  if(!accessAlreadyChecked){
   const allowed=await hasActiveCommercialAccess();
   if(!allowed){renderAccessBlocked();return}
