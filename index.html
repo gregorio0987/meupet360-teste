@@ -5145,23 +5145,63 @@ function authMsg(t=''){const x=document.getElementById('authMessage');if(x)x.tex
 function renderSupabaseSetup(){renderAuth('login')}
 function renderAuth(mode='login'){showAuthGate();document.getElementById('authSubtitle').textContent='Entre para acessar seus pets e manter seus dados vinculados à sua conta.';const login=mode==='login';document.getElementById('authGateBody').innerHTML=`<div class="auth-tabs"><button class="${login?'active':''}" onclick="renderAuth('login')">Entrar</button><button class="${!login?'active':''}" onclick="renderAuth('signup')">Criar conta</button></div><form class="auth-form" id="authForm">${login?'':`<div class="field"><label>Nome</label><input name="name" maxlength="40" autocomplete="name" required></div>`}<div class="field"><label>E-mail</label><input name="email" type="email" autocomplete="email" required></div><div class="field"><label>Senha</label><input name="password" type="password" minlength="6" autocomplete="${login?'current-password':'new-password'}" required></div>${login?'':`<div class="field"><label>Confirmar senha</label><input name="password2" type="password" minlength="6" autocomplete="new-password" required></div>`}<button class="btn primary auth-main-btn">${login?'Entrar':'Criar conta'}</button>${login?`<button type="button" onclick="forgotPassword()" style="background:none;border:0;padding:10px 0 0;color:#2563eb;cursor:pointer;font-size:14px;width:100%;text-align:center">Esqueci minha senha</button>`:''}<div class="auth-message" id="authMessage"></div></form>`;document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),email=f.get('email').trim(),password=f.get('password');authMsg('');try{if(login){const {data,error}=await sbClient.auth.signInWithPassword({email,password});if(error)throw error;sbSession=data.session;await afterAuth()}else{const name=f.get('name').trim(),p2=f.get('password2');if(password!==p2){authMsg('As senhas não coincidem.');return}const {data,error}=await sbClient.auth.signUp({email,password,options:{data:{name}}});if(error)throw error;sbSession=data.session;if(!sbSession){authMsg('Conta criada. Faça login para continuar.');renderAuth('login');return}await afterAuth()}}catch(err){authMsg(err?.message||'Não foi possível autenticar.')}}}
 async function forgotPassword(){
-  const email=prompt('Digite o e-mail cadastrado no MeuPet 360:');
-  if(!email)return;
+  showAuthGate();
+  document.getElementById('authSubtitle').textContent='Recupere o acesso à sua conta.';
+
+  document.getElementById('authGateBody').innerHTML=`
+    <div class="auth-form">
+      <div style="text-align:center;margin-bottom:20px">
+        <div style="font-size:38px;margin-bottom:8px">🔐</div>
+        <h3 style="margin:0 0 8px">Recuperar senha</h3>
+        <p style="margin:0;color:#667085;font-size:14px">
+          Informe o e-mail cadastrado no MeuPet 360.
+        </p>
+      </div>
+
+      <div class="field">
+        <label>E-mail</label>
+        <input id="recoveryEmail" type="email"
+          autocomplete="email"
+          placeholder="seuemail@exemplo.com">
+      </div>
+
+      <button class="btn primary auth-main-btn"
+        type="button" onclick="sendPasswordRecovery()">
+        Enviar link de recuperação
+      </button>
+
+      <button type="button"
+        onclick="renderAuth('login')"
+        style="background:none;border:0;padding:14px 0 0;color:#2563eb;cursor:pointer;font-size:14px;width:100%">
+        Voltar para entrar
+      </button>
+
+      <div class="auth-message" id="recoveryMessage"></div>
+    </div>`;
+}
+
+async function sendPasswordRecovery(){
+  const email=document.getElementById('recoveryEmail')?.value.trim();
+  const msg=document.getElementById('recoveryMessage');
+
+  if(!email){
+    if(msg)msg.textContent='Informe seu e-mail.';
+    return;
+  }
 
   try{
-    const {error}=await sbClient.auth.resetPasswordForEmail(
-      email.trim(),
-      {
-        redirectTo: window.location.origin + window.location.pathname
-      }
-    );
+    if(msg)msg.textContent='Enviando...';
+
+    const {error}=await sbClient.auth.resetPasswordForEmail(email,{
+      redirectTo:window.location.origin+window.location.pathname
+    });
 
     if(error)throw error;
 
-    alert('Enviamos um link de recuperação para o seu e-mail. Verifique também a caixa de spam.');
+    if(msg)msg.textContent='Link enviado! Verifique sua caixa de entrada e também o spam.';
   }catch(err){
     console.error('Erro ao solicitar recuperação de senha:',err);
-    alert('Não foi possível enviar o e-mail de recuperação. Tente novamente.');
+    if(msg)msg.textContent='Não foi possível enviar o link. Tente novamente.';
   }
 } 
 async function handlePasswordRecovery(){
@@ -5170,14 +5210,85 @@ async function handlePasswordRecovery(){
   sbClient.auth.onAuthStateChange(async(event,session)=>{
     if(event!=='PASSWORD_RECOVERY')return;
 
-    const newPassword=prompt('Digite sua nova senha (mínimo 6 caracteres):');
-    if(!newPassword)return;
+    showAuthGate();
+    document.getElementById('authSubtitle').textContent='Defina uma nova senha para sua conta.';
 
-    if(newPassword.length<6){
-      alert('A senha precisa ter pelo menos 6 caracteres.');
-      return;
-    }
+    document.getElementById('authGateBody').innerHTML=`
+      <div class="auth-form">
+        <div style="text-align:center;margin-bottom:20px">
+          <div style="font-size:38px;margin-bottom:8px">🔐</div>
+          <h3 style="margin:0 0 8px">Criar nova senha</h3>
+          <p style="margin:0;color:#667085;font-size:14px">
+            Escolha uma nova senha com pelo menos 6 caracteres.
+          </p>
+        </div>
 
+        <div class="field">
+          <label>Nova senha</label>
+          <input id="newRecoveryPassword"
+            type="password"
+            minlength="6"
+            autocomplete="new-password"
+            placeholder="Digite sua nova senha">
+        </div>
+
+        <div class="field">
+          <label>Confirmar nova senha</label>
+          <input id="confirmRecoveryPassword"
+            type="password"
+            minlength="6"
+            autocomplete="new-password"
+            placeholder="Digite novamente">
+        </div>
+
+        <button class="btn primary auth-main-btn"
+          type="button"
+          onclick="updateRecoveredPassword()">
+          Alterar senha
+        </button>
+
+        <div class="auth-message" id="recoveryPasswordMessage"></div>
+      </div>`;
+  });
+}
+
+async function updateRecoveredPassword(){
+  const password=document.getElementById('newRecoveryPassword')?.value||'';
+  const confirmPassword=document.getElementById('confirmRecoveryPassword')?.value||'';
+  const msg=document.getElementById('recoveryPasswordMessage');
+
+  if(password.length<6){
+    if(msg)msg.textContent='A senha precisa ter pelo menos 6 caracteres.';
+    return;
+  }
+
+  if(password!==confirmPassword){
+    if(msg)msg.textContent='As senhas não coincidem.';
+    return;
+  }
+
+  try{
+    if(msg)msg.textContent='Alterando senha...';
+
+    const {error}=await sbClient.auth.updateUser({
+      password:password
+    });
+
+    if(error)throw error;
+
+    if(msg)msg.textContent='Senha alterada com sucesso!';
+
+    setTimeout(async()=>{
+      await sbClient.auth.signOut();
+      sbSession=null;
+      renderAuth('login');
+    },1200);
+
+  }catch(err){
+    console.error('Erro ao alterar senha:',err);
+    if(msg)msg.textContent='Não foi possível alterar a senha. Solicite um novo link e tente novamente.';
+  }
+}
     const confirmPassword=prompt('Digite novamente a nova senha:');
     if(newPassword!==confirmPassword){
       alert('As senhas não coincidem.');
