@@ -5206,13 +5206,14 @@ async function sendPasswordRecovery(){
 } 
 async function handlePasswordRecovery(){
   if(!sbClient)return;
-window.meupetPasswordRecovery = false;
-  
-  sbClient.auth.onAuthStateChange(async(event,session)=>{
-    if(event!=='PASSWORD_RECOVERY')return;
-window.meupetPasswordRecovery = true;
+
+  const showRecoveryScreen=()=>{
+    window.meupetPasswordRecovery=true;
+    sessionStorage.setItem('meupet_password_recovery','1');
+
     showAuthGate();
-    document.getElementById('authSubtitle').textContent='Defina uma nova senha para sua conta.';
+    document.getElementById('authSubtitle').textContent=
+      'Defina uma nova senha para sua conta.';
 
     document.getElementById('authGateBody').innerHTML=`
       <div class="auth-form">
@@ -5248,11 +5249,21 @@ window.meupetPasswordRecovery = true;
           Alterar senha
         </button>
 
-        <div class="auth-message" id="recoveryPasswordMessage"></div>
+        <div class="auth-message"
+          id="recoveryPasswordMessage"></div>
       </div>`;
+  };
+
+  if(sessionStorage.getItem('meupet_password_recovery')==='1'){
+    showRecoveryScreen();
+  }
+
+  sbClient.auth.onAuthStateChange((event)=>{
+    if(event==='PASSWORD_RECOVERY'){
+      showRecoveryScreen();
+    }
   });
 }
-
 async function updateRecoveredPassword(){
   const password=document.getElementById('newRecoveryPassword')?.value||'';
   const confirmPassword=document.getElementById('confirmRecoveryPassword')?.value||'';
@@ -5278,7 +5289,8 @@ async function updateRecoveredPassword(){
     if(error)throw error;
 
     if(msg)msg.textContent='Senha alterada com sucesso!';
-
+sessionStorage.removeItem('meupet_password_recovery');
+window.meupetPasswordRecovery=false;
     setTimeout(async()=>{
       await sbClient.auth.signOut();
       sbSession=null;
