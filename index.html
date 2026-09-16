@@ -5286,7 +5286,20 @@ async function updateRecoveredPassword(){
       password:password
     });
 
-    if(error)throw error;
+    if(error){
+  const errorText=(error.message||'').toLowerCase();
+
+  if(
+    errorText.includes('same password') ||
+    errorText.includes('different from the old password') ||
+    errorText.includes('different from the previous password')
+  ){
+    if(msg)msg.textContent='A nova senha deve ser diferente da senha atual. Escolha outra senha.';
+    return;
+  }
+
+  throw error;
+}
 
     if(msg)msg.textContent='Senha alterada com sucesso!';
 sessionStorage.removeItem('meupet_password_recovery');
