@@ -5143,8 +5143,64 @@ function showAuthGate(){document.getElementById('authGate')?.classList.add('open
 function hideAuthGate(){document.getElementById('authGate')?.classList.remove('open')}
 function authMsg(t=''){const x=document.getElementById('authMessage');if(x)x.textContent=t}
 function renderSupabaseSetup(){renderAuth('login')}
-function renderAuth(mode='login'){showAuthGate();document.getElementById('authSubtitle').textContent='Entre para acessar seus pets e manter seus dados vinculados à sua conta.';const login=mode==='login';document.getElementById('authGateBody').innerHTML=`<div class="auth-tabs"><button class="${login?'active':''}" onclick="renderAuth('login')">Entrar</button><button class="${!login?'active':''}" onclick="renderAuth('signup')">Criar conta</button></div><form class="auth-form" id="authForm">${login?'':`<div class="field"><label>Nome</label><input name="name" maxlength="40" autocomplete="name" required></div>`}<div class="field"><label>E-mail</label><input name="email" type="email" autocomplete="email" required></div><div class="field"><label>Senha</label><input name="password" type="password" minlength="6" autocomplete="${login?'current-password':'new-password'}" required></div>${login?'':`<div class="field"><label>Confirmar senha</label><input name="password2" type="password" minlength="6" autocomplete="new-password" required></div>`}<button class="btn primary auth-main-btn">${login?'Entrar':'Criar conta'}</button><div class="auth-message" id="authMessage"></div></form>`;document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),email=f.get('email').trim(),password=f.get('password');authMsg('');try{if(login){const {data,error}=await sbClient.auth.signInWithPassword({email,password});if(error)throw error;sbSession=data.session;await afterAuth()}else{const name=f.get('name').trim(),p2=f.get('password2');if(password!==p2){authMsg('As senhas não coincidem.');return}const {data,error}=await sbClient.auth.signUp({email,password,options:{data:{name}}});if(error)throw error;sbSession=data.session;if(!sbSession){authMsg('Conta criada. Faça login para continuar.');renderAuth('login');return}await afterAuth()}}catch(err){authMsg(err?.message||'Não foi possível autenticar.')}}}
-async function ensureRemoteProfile(){if(!sbClient||!sbSession?.user)return;const u=sbSession.user;const fallback=(u.user_metadata&&u.user_metadata.name)||((db.owner&&db.owner.nome)||'Tutor');try{const {data}=await sbClient.from('profiles').select('name,avatar_url,phone').eq('id',u.id).maybeSingle();if(!data){await sbClient.from('profiles').insert({id:u.id,name:fallback})}else{db.owner=db.owner||{};if(data.name)db.owner.nome=data.name;if(data.avatar_url)db.owner.foto=data.avatar_url;if(data.phone!==undefined&&data.phone!==null)db.owner.telefone=data.phone}}catch(e){console.warn('Perfil Supabase:',e)}}
+function renderAuth(mode='login'){showAuthGate();document.getElementById('authSubtitle').textContent='Entre para acessar seus pets e manter seus dados vinculados à sua conta.';const login=mode==='login';document.getElementById('authGateBody').innerHTML=`<div class="auth-tabs"><button class="${login?'active':''}" onclick="renderAuth('login')">Entrar</button><button class="${!login?'active':''}" onclick="renderAuth('signup')">Criar conta</button></div><form class="auth-form" id="authForm">${login?'':`<div class="field"><label>Nome</label><input name="name" maxlength="40" autocomplete="name" required></div>`}<div class="field"><label>E-mail</label><input name="email" type="email" autocomplete="email" required></div><div class="field"><label>Senha</label><input name="password" type="password" minlength="6" autocomplete="${login?'current-password':'new-password'}" required></div>${login?'':`<div class="field"><label>Confirmar senha</label><input name="password2" type="password" minlength="6" autocomplete="new-password" required></div>`}<button class="btn primary auth-main-btn">${login?'Entrar':'Criar conta'}</button>${login?`<button type="button" onclick="forgotPassword()" style="background:none;border:0;padding:10px 0 0;color:#2563eb;cursor:pointer;font-size:14px;width:100%;text-align:center">Esqueci minha senha</button>`:''}<div class="auth-message" id="authMessage"></div></form>`;document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),email=f.get('email').trim(),password=f.get('password');authMsg('');try{if(login){const {data,error}=await sbClient.auth.signInWithPassword({email,password});if(error)throw error;sbSession=data.session;await afterAuth()}else{const name=f.get('name').trim(),p2=f.get('password2');if(password!==p2){authMsg('As senhas não coincidem.');return}const {data,error}=await sbClient.auth.signUp({email,password,options:{data:{name}}});if(error)throw error;sbSession=data.session;if(!sbSession){authMsg('Conta criada. Faça login para continuar.');renderAuth('login');return}await afterAuth()}}catch(err){authMsg(err?.message||'Não foi possível autenticar.')}}}
+async function forgotPassword(){
+  const email=prompt('Digite o e-mail cadastrado no MeuPet 360:');
+  if(!email)return;
+
+  try{
+    const {error}=await sbClient.auth.resetPasswordForEmail(
+      email.trim(),
+      {
+        redirectTo: window.location.origin + window.location.pathname
+      }
+    );
+
+    if(error)throw error;
+
+    alert('Enviamos um link de recuperação para o seu e-mail. Verifique também a caixa de spam.');
+  }catch(err){
+    console.error('Erro ao solicitar recuperação de senha:',err);
+    alert('Não foi possível enviar o e-mail de recuperação. Tente novamente.');
+  }
+} 
+async function handlePasswordRecovery(){
+  if(!sbClient)return;
+
+  sbClient.auth.onAuthStateChange(async(event,session)=>{
+    if(event!=='PASSWORD_RECOVERY')return;
+
+    const newPassword=prompt('Digite sua nova senha (mínimo 6 caracteres):');
+    if(!newPassword)return;
+
+    if(newPassword.length<6){
+      alert('A senha precisa ter pelo menos 6 caracteres.');
+      return;
+    }
+
+    const confirmPassword=prompt('Digite novamente a nova senha:');
+    if(newPassword!==confirmPassword){
+      alert('As senhas não coincidem.');
+      return;
+    }
+
+    const {error}=await sbClient.auth.updateUser({
+      password:newPassword
+    });
+
+    if(error){
+      console.error('Erro ao alterar senha:',error);
+      alert('Não foi possível alterar a senha. Solicite um novo link e tente novamente.');
+      return;
+    }
+
+    alert('Senha alterada com sucesso! Você já pode entrar com a nova senha.');
+    await sbClient.auth.signOut();
+    sbSession=null;
+    renderAuth('login');
+  });
+}
+  async function ensureRemoteProfile(){if(!sbClient||!sbSession?.user)return;const u=sbSession.user;const fallback=(u.user_metadata&&u.user_metadata.name)||((db.owner&&db.owner.nome)||'Tutor');try{const {data}=await sbClient.from('profiles').select('name,avatar_url,phone').eq('id',u.id).maybeSingle();if(!data){await sbClient.from('profiles').insert({id:u.id,name:fallback})}else{db.owner=db.owner||{};if(data.name)db.owner.nome=data.name;if(data.avatar_url)db.owner.foto=data.avatar_url;if(data.phone!==undefined&&data.phone!==null)db.owner.telefone=data.phone}}catch(e){console.warn('Perfil Supabase:',e)}}
 function isUuid(v=''){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(v||''))}
 function cloudPetFromProfile(profile){const p=(profile&&profile.pet)||{};const cas=String(p.castrado||'').toLowerCase();return {user_id:sbSession.user.id,name:p.nome||'Pet sem nome',species:p.tipo||p.especie||null,breed:p.raca||null,sex:p.sexo||null,birth_date:p.nascimento||null,weight_kg:p.peso?Number(String(p.peso).replace(',','.')):null,color_coat:p.cor||null,neutered:cas==='sim'?true:cas==='não'||cas==='nao'?false:null,microchip:p.microchip||null,veterinarian:p.veterinario||null,veterinarian_phone:p.telefone||null,hospital_24h:p.hospital||null,hospital_24h_phone:p.telefone24||null,insurance_plan:p.plano||null,blood_type:p.tipoSanguineo||null,emergency_contact:p.contatoEmergencia||null,allergies:p.alergias||null,food:p.alimentacao||null,notes:p.observacoes||null,photo_url:p.foto||null,updated_at:new Date().toISOString()}}
 function localPetFromCloud(row,existing=null){const old=(existing&&existing.pet)||{};const pet={...old,nome:row.name||'',tipo:row.species||'',raca:row.breed||'',sexo:row.sex||'',nascimento:row.birth_date||'',peso:row.weight_kg==null?'':String(row.weight_kg),cor:row.color_coat||'',castrado:row.neutered===true?'Sim':row.neutered===false?'Não':'Não informado',microchip:row.microchip||'',veterinario:row.veterinarian||'',telefone:row.veterinarian_phone||'',hospital:row.hospital_24h||'',telefone24:row.hospital_24h_phone||'',plano:row.insurance_plan||'',tipoSanguineo:row.blood_type||'',contatoEmergencia:row.emergency_contact||'',alergias:row.allergies||'',alimentacao:row.food||'',observacoes:row.notes||'',foto:row.photo_url||''};return {id:row.id,pet,vacinas:(existing&&existing.vacinas)||[],consultas:(existing&&existing.consultas)||[],meds:(existing&&existing.meds)||[],cuidados:(existing&&existing.cuidados)||[],gastos:(existing&&existing.gastos)||[],pesos:(existing&&existing.pesos)||[]}}
@@ -5314,7 +5370,7 @@ try{
  await syncAllDataWithSupabase();
  applyAppearance();renderAll();go('central');
 }
-async function initSupabaseAuth(force=false){const cfg=getSupabaseConfig();if(!validSupabaseConfig(cfg)){renderSupabaseSetup();return false}try{sbClient=window.supabase.createClient(cfg.url,cfg.key);const {data,error}=await sbClient.auth.getSession();if(error)throw error;sbSession=data.session;sbClient.auth.onAuthStateChange(async(_event,session)=>{sbSession=session;if(!session){renderAuth('login')}});if(sbSession){try{await afterAuth()}catch(renderErr){console.error('Inicialização da interface:',renderErr);hideAuthGate();try{renderAll()}catch(_){} }return true}renderAuth('login');return false}catch(e){console.error('Conexão Supabase:',e);if(force){authMsg('Não foi possível conectar agora. Tente novamente.')}else{showAuthGate();document.getElementById('authSubtitle').textContent='Não foi possível iniciar a sessão agora.';document.getElementById('authGateBody').innerHTML=`<div class="auth-config-help">Sua configuração do MeuPet 360 foi preservada. Verifique a internet e recarregue a página.</div><button class="btn primary auth-main-btn" onclick="location.reload()">Tentar novamente</button>`}return false}}
+async function initSupabaseAuth(force=false){const cfg=getSupabaseConfig();if(!validSupabaseConfig(cfg)){renderSupabaseSetup();return false}try{sbClient=window.supabase.createClient(cfg.url,cfg.key);handlePasswordRecovery();const {data,error}=await sbClient.auth.getSession();if(error)throw error;sbSession=data.session;sbClient.auth.onAuthStateChange(async(_event,session)=>{sbSession=session;if(!session){renderAuth('login')}});if(sbSession){try{await afterAuth()}catch(renderErr){console.error('Inicialização da interface:',renderErr);hideAuthGate();try{renderAll()}catch(_){} }return true}renderAuth('login');return false}catch(e){console.error('Conexão Supabase:',e);if(force){authMsg('Não foi possível conectar agora. Tente novamente.')}else{showAuthGate();document.getElementById('authSubtitle').textContent='Não foi possível iniciar a sessão agora.';document.getElementById('authGateBody').innerHTML=`<div class="auth-config-help">Sua configuração do MeuPet 360 foi preservada. Verifique a internet e recarregue a página.</div><button class="btn primary auth-main-btn" onclick="location.reload()">Tentar novamente</button>`}return false}}
 async function logoutMeuPet(){if(sbClient)await sbClient.auth.signOut();sbSession=null;renderAuth('login')}
 async function syncTutorNameToSupabase(){if(!sbClient||!sbSession?.user)return;try{await sbClient.from('profiles').upsert({id:sbSession.user.id,name:(db.owner&&db.owner.nome)||'Tutor',updated_at:new Date().toISOString()})}catch(e){console.warn(e)}}
 async function syncAppearanceFromSupabase(){
