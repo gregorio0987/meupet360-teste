@@ -5181,7 +5181,12 @@ function renderAuth(mode='login'){showAuthGate();document.getElementById('authSu
     <a href="privacidade.html" target="_blank" onclick="event.stopPropagation()">Política de Privacidade</a>.
   </label>
 </div>
-`}<button class="btn primary auth-main-btn">${login?'Entrar':'Criar conta'}</button>${login?`<button type="button" onclick="forgotPassword()" style="background:none;border:0;padding:10px 0 0;color:#2563eb;cursor:pointer;font-size:14px;width:100%;text-align:center">Esqueci minha senha</button>`:''}<div class="auth-message" id="authMessage"></div></form>`;document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),email=f.get('email').trim(),password=f.get('password');authMsg('');try{if(login){const {data,error}=await sbClient.auth.signInWithPassword({email,password});if(error)throw error;sbSession=data.session;await afterAuth()}else{const name=f.get('name').trim(),p2=f.get('password2');if(password!==p2){authMsg('As senhas não coincidem.');return}const {data,error}=await sbClient.auth.signUp({email,password,options:{data:{name}}});if(error)throw error;sbSession=data.session;if(!sbSession){authMsg('Conta criada. Faça login para continuar.');renderAuth('login');return}await afterAuth()}}catch(err){authMsg(err?.message||'Não foi possível autenticar.')}}}
+`}<button class="btn primary auth-main-btn">${login?'Entrar':'Criar conta'}</button>${login?`<button type="button" onclick="forgotPassword()" style="background:none;border:0;padding:10px 0 0;color:#2563eb;cursor:pointer;font-size:14px;width:100%;text-align:center">Esqueci minha senha</button>`:''}<div class="auth-message" id="authMessage"></div></form>`;document.getElementById('authForm').onsubmit=async e=>{e.preventDefault();const f=new FormData(e.target),email=f.get('email').trim(),password=f.get('password');authMsg('');try{if(login){const {data,error}=await sbClient.auth.signInWithPassword({email,password});if(error)throw error;sbSession=data.session;await afterAuth()}else{const name=f.get('name').trim(),p2=f.get('password2');if(password!==p2){authMsg('As senhas não coincidem.');return}const acceptTerms=f.get('acceptTerms');
+
+if(!acceptTerms){
+  authMsg('Você precisa aceitar os Termos de Uso e a Política de Privacidade para criar sua conta.');
+  return;
+}const {data,error}=await sbClient.auth.signUp({email,password,options:{data:{name}}});if(error)throw error;sbSession=data.session;if(!sbSession){authMsg('Conta criada. Faça login para continuar.');renderAuth('login');return}await afterAuth()}}catch(err){authMsg(err?.message||'Não foi possível autenticar.')}}}
 async function forgotPassword(){
   showAuthGate();
   document.getElementById('authSubtitle').textContent='Recupere o acesso à sua conta.';
