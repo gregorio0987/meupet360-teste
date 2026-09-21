@@ -5362,7 +5362,7 @@ function localItemToCloud(kind,x,petId){
  const base={user_id:sbSession.user.id,pet_id:petId,updated_at:new Date().toISOString()};
  if(kind==='vacinas')return {...base,name:x.nome||'Vacina',last_dose:cleanNull(x.ultima),next_dose:cleanNull(x.proxima),veterinarian:cleanNull(x.vet),lot:cleanNull(x.lote),notes:cleanNull(x.obs)};
  if(kind==='consultas')return {...base,appointment_date:x.data,reason:cleanNull(x.motivo),clinic_veterinarian:cleanNull(x.vet),return_date:cleanNull(x.retorno),notes:cleanNull(x.obs)};
- if(kind==='meds')return {...base,name:x.nome||'Medicamento',start_date:cleanNull(x.inicio),end_date:cleanNull(x.fim),dosage:cleanNull(x.dose),frequency:cleanNull(x.freq),notes:cleanNull(x.obs)};
+ if(kind==='meds')return {...base,name:x.nome||'Medicamento',start_date:cleanNull(x.inicio),end_date:cleanNull(x.fim),dosage:cleanNull(x.dose),frequency:cleanNull(x.freq),medication_time:cleanNull(x.horario),reminder_enabled:true,notes:cleanNull(x.obs)};
  if(kind==='cuidados')return {...base,title:x.servico||x.tipo||'Cuidado',care_date:cleanNull(x.proxima||x.ultima),frequency:cleanNull(x.frequencia),location:cleanNull(x.local),last_done:cleanNull(x.ultimaRealizacao||x.ultima),care_time:cleanNull(x.horario),notes:cleanNull(x.obs)};
  if(kind==='gastos')return {...base,title:x.descricao||'Gasto',category:x.categoria||'Outros',amount:Number(String(x.valor||0).replace(',','.'))||0,expense_date:x.data,location:cleanNull(x.local),notes:cleanNull(x.obs)};
  if(kind==='pesos')return {...base,weight_date:x.data,weight_kg:Number(String(x.peso||0).replace(',','.'))||0,notes:cleanNull(x.obs)};
@@ -5371,7 +5371,7 @@ function localItemToCloud(kind,x,petId){
 function cloudItemToLocal(kind,r){
  if(kind==='vacinas')return {_cloud_id:r.id,nome:r.name||'',ultima:r.last_dose||'',proxima:r.next_dose||'',vet:r.veterinarian||'',lote:r.lot||'',obs:r.notes||''};
  if(kind==='consultas')return {_cloud_id:r.id,data:r.appointment_date||'',motivo:r.reason||'',vet:r.clinic_veterinarian||'',retorno:r.return_date||'',obs:r.notes||''};
- if(kind==='meds')return {_cloud_id:r.id,nome:r.name||'',dose:r.dosage||'',freq:r.frequency||'',inicio:r.start_date||'',fim:r.end_date||'',obs:r.notes||''};
+ if(kind==='meds')return {_cloud_id:r.id,nome:r.name||'',dose:r.dosage||'',freq:r.frequency||'',horario:r.medication_time||'',inicio:r.start_date||'',fim:r.end_date||'',obs:r.notes||''};
  if(kind==='cuidados')return {_cloud_id:r.id,servico:r.title||'',frequencia:r.frequency||'',proxima:r.care_date||'',local:r.location||'',ultimaRealizacao:r.last_done||'',horario:r.care_time||'',obs:r.notes||''};
  if(kind==='gastos')return {_cloud_id:r.id,descricao:r.title||'',categoria:r.category||'Outros',valor:r.amount==null?'':String(r.amount),data:r.expense_date||'',local:r.location||'',obs:r.notes||''};
  if(kind==='pesos')return {_cloud_id:r.id,data:r.weight_date||'',peso:r.weight_kg==null?'':String(r.weight_kg),obs:r.notes||''};
@@ -6788,7 +6788,7 @@ function closeModal(){document.getElementById('modal').classList.remove('open')}
 function fm(title,arr,i,fields,after){let x=i>=0?arr[i]:{};modal(title,`<form id="mf"><div class="formgrid">${fields.map(f=>field(f[0],f[1],x[f[0]]||'',f[2]||'text',!!f[3],f[4]||'')).join('')}</div><button class="btn primary" style="margin-top:18px">Salvar</button></form>`);document.getElementById('mf').onsubmit=async e=>{e.preventDefault();let o=Object.fromEntries(new FormData(e.target));if('peso' in o)o.peso=o.peso.replace(',','.');if(i>=0)arr[i]={...x,...o};else arr.push(o);closeModal();await persist();go(after)}}
 function openVacina(i=-1){fm('Vacina',db.vacinas,i,[['nome','Vacina','text',true],['ultima','Última dose','date'],['proxima','Próxima dose','date',true],['vet','Veterinário'],['lote','Lote'],['obs','Observação','textarea']], 'saude')}
 function openConsulta(i=-1){fm('Consulta',db.consultas,i,[['data','Data','date',true],['motivo','Motivo','text',true],['vet','Clínica / Veterinário'],['retorno','Retorno','date'],['obs','Observação','textarea']], 'saude')}
-function openMed(i=-1){fm('Medicamento',db.meds,i,[['nome','Medicamento','text',true],['dose','Dose prescrita'],['freq','Frequência'],['inicio','Início','date'],['fim','Fim','date'],['obs','Observação','textarea']], 'saude')}
+function openMed(i=-1){fm('Medicamento',db.meds,i,[['nome','Medicamento','text',true],['dose','Dose prescrita'],['freq','Frequência','select',true,'1x ao dia|A cada 12 horas|A cada 8 horas|A cada 6 horas|A cada 4 horas|Outro / sem lembrete de dose'],['horario','Horário da 1ª dose','time'],['inicio','Início','date'],['fim','Fim','date'],['obs','Observação','textarea']], 'saude')}
 function openCuidado(i=-1){fm('Cuidado',db.cuidados,i,[['servico','Serviço','text',true],['ultima','Última data','date'],['proxima','Próxima data','date',true],['local','Local / profissional'],['obs','Observação','textarea']], 'rotina')}
 function openGasto(i=-1){fm('Lançar gasto',db.gastos,i,[['descricao','Descrição','text',true],['valor','Valor (R$)','number',true],['categoria','Categoria','select',true,'Acessórios|Alimentação|Banho/Tosa|Hospedagem|Medicamentos|Plano/Seguro|Vacinas|Veterinário|Outros'],['data','Data','date',true],['local','Estabelecimento / profissional'],['obs','Observação','textarea']], 'gastos')}
 async function del(k,i){if(confirm('Excluir este registro?')){db[k].splice(i,1);await persist()}}
