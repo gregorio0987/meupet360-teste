@@ -26,7 +26,7 @@ nav button:hover,nav button.active{background:linear-gradient(90deg,#ffffff1f,#f
 table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}th,td{padding:12px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}th{background:var(--mint);color:var(--g)}
 .empty{color:var(--muted);font-style:italic}.row-actions button{border:0;background:none;font-weight:800;color:var(--g);cursor:pointer}.row-actions .del{color:var(--red)}
 .modal{position:fixed;inset:0;background:#0007;display:none;place-items:center;padding:18px;z-index:20}.modal.open{display:grid}.modalbox{background:var(--bg);width:min(680px,100%);max-height:90vh;overflow:auto;border-radius:21px;padding:22px}.modalhead{display:flex;justify-content:space-between;align-items:center}.x{border:0;background:none;font-size:26px;cursor:pointer}
-.toast{position:fixed;right:20px;bottom:20px;background:var(--g);color:#fff;padding:13px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:30}.toast.show{opacity:1}
+.toast{position:fixed;right:20px;bottom:max(20px,calc(env(safe-area-inset-bottom) + 20px));background:var(--g);color:#fff;padding:13px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:30}.toast.show{opacity:1}
 .note{background:var(--yellow);border:1px solid #ecd4aa;border-radius:14px;padding:14px;color:#76511e}
 .alert-card{border-left:6px solid var(--line)}
 .alert-green{background:#edf8f1;border-left-color:#3d9b62}.alert-yellow{background:#fff8dc;border-left-color:#d8ae25}
@@ -4436,6 +4436,7 @@ body.onboarding-test .onboarding-test-banner{display:flex}
 }
 @media(max-width:840px){#central .central-tutor-profile-right{display:none!important;}}
 
+@media(max-width:840px){.toast{left:18px;right:18px;bottom:calc(92px + env(safe-area-inset-bottom));text-align:center;z-index:9999}}
 </style>
 
 <style>
@@ -5165,6 +5166,7 @@ let sbClient=null;
 let sbSession=null;
 const SUPABASE_URL='https://tvothtukcvsaoerdiabr.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_z_z4oYRXPVq9aBa9D3Joyg_brRhkjUG';
+const VAPID_PUBLIC_KEY='BH_5JlG-a-pqGa77nojE9-CXRt7pfWs7dqHanZAQTJwLnbsKc5QRSyI8KcMQKDhQLDioNvzdtEaSVvlKlNhfhoc';
 const LAST_AUTH_USER_KEY='meupet360_last_auth_user';
 function getSupabaseConfig(){return {url:SUPABASE_URL,key:SUPABASE_PUBLISHABLE_KEY}}
 function validSupabaseConfig(c){return !!(c&&/^https:\/\/.+\.supabase\.co\/?$/i.test(c.url||'')&&String(c.key||'').startsWith('sb_publishable_'))}
@@ -6980,30 +6982,60 @@ async function registerMeuPetSW(){
  if(!('serviceWorker' in navigator))throw new Error('Service Worker indisponível');
  return await navigator.serviceWorker.register('./meupet360-sw.js');
 }
+function urlBase64ToUint8Array(base64String){
+ const padding='='.repeat((4-base64String.length%4)%4);
+ const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+ const rawData=atob(base64);
+ return Uint8Array.from([...rawData].map(c=>c.charCodeAt(0)));
+}
+async function getPushSubscription(){
+ const reg=await registerMeuPetSW();
+ await navigator.serviceWorker.ready;
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub){
+  sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+ }
+ return sub;
+}
+async function savePushSubscription(sub){
+ if(!sbClient||!sbSession?.user)throw new Error('Faça login para ativar as notificações.');
+ const j=sub.toJSON();
+ const row={user_id:sbSession.user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh,auth:j.keys?.auth,updated_at:new Date().toISOString()};
+ if(!row.endpoint||!row.p256dh||!row.auth)throw new Error('Assinatura Push incompleta.');
+ const {error}=await sbClient.from('push_subscriptions').upsert(row,{onConflict:'endpoint'});
+ if(error)throw error;
+ return j;
+}
 async function activateBrowserNotifications(){
  if(!browserNotifySupported()){toast('Notificações não suportadas neste navegador');return}
  try{
   await registerMeuPetSW();
-  const permission=await Notification.requestPermission();
-  notificationsPage();
-  if(permission==='granted')toast('Notificações ativadas neste aparelho');
-  else if(permission==='denied')toast('Permissão de notificações bloqueada');
-  else toast('Permissão não concedida');
- }catch(e){console.error('Notificações:',e);toast('Não foi possível ativar as notificações')}
+  const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+  if(permission==='granted'){
+   const sub=await getPushSubscription();
+   await savePushSubscription(sub);
+   notificationsPage();
+   toast('Notificações ativadas e aparelho conectado');
+  }else if(permission==='denied'){notificationsPage();toast('Permissão de notificações bloqueada')}
+  else{notificationsPage();toast('Permissão não concedida')}
+ }catch(e){console.error('Notificações:',e);toast(e?.message||'Não foi possível ativar as notificações')}
 }
 async function sendBrowserNotificationTest(){
  if(!browserNotifySupported()){toast('Notificações não suportadas neste navegador');return}
  if(Notification.permission!=='granted'){toast('Ative as notificações primeiro');return}
  try{
-  const reg=await registerMeuPetSW();
-  await reg.showNotification('MeuPet 360 🐾',{body:'Teste concluído! As notificações estão funcionando neste aparelho.',tag:'meupet360-test',renotify:true});
-  toast('Notificação de teste enviada');
- }catch(e){console.error('Teste de notificação:',e);toast('Não foi possível enviar o teste')}
+  const sub=await getPushSubscription();
+  const subscription=await savePushSubscription(sub);
+  const {data,error}=await sbClient.functions.invoke('send-push-notification',{body:{subscription,title:'MeuPet 360 🐾',message:'Teste do servidor concluído! O Push do MeuPet 360 chegou até este aparelho.',url:location.href}});
+  if(error)throw error;
+  if(data?.success===false)throw new Error(data.error||'Falha no envio do Push');
+  toast('Push de teste solicitado ao servidor');
+ }catch(e){console.error('Teste Push:',e);toast(e?.message||'Não foi possível enviar o Push de teste')}
 }
 function browserNotifyCard(){
  const st=browserNotifyStatus();
  const granted=browserNotifySupported() && Notification.permission==='granted';
- return `<div class=\"browser-notify-card ${st.cls}\"><div class=\"browser-notify-top\"><div class=\"browser-notify-icon\">🔔</div><div style=\"flex:1\"><div class=\"mini-title\" style=\"margin:0 0 4px\">Notificações no celular</div><div class=\"sub\">${st.text}</div></div><span class=\"browser-notify-status\">${st.label}</span></div><div class=\"browser-notify-actions\"><button class=\"btn primary\" type=\"button\" onclick=\"activateBrowserNotifications()\">🔔 ${granted?'Notificações ativadas':'Ativar notificações'}</button><button class=\"btn ghost\" type=\"button\" onclick=\"sendBrowserNotificationTest()\" ${granted?'':'disabled'}>Enviar teste</button></div><div class=\"browser-notify-note\">Este teste confirma a permissão e o funcionamento da notificação neste aparelho. Os avisos automáticos com o app fechado exigem a etapa de push em segundo plano.</div></div>`;
+ return `<div class=\"browser-notify-card ${st.cls}\"><div class=\"browser-notify-top\"><div class=\"browser-notify-icon\">🔔</div><div style=\"flex:1\"><div class=\"mini-title\" style=\"margin:0 0 4px\">Notificações no celular</div><div class=\"sub\">${st.text}</div></div><span class=\"browser-notify-status\">${st.label}</span></div><div class=\"browser-notify-actions\"><button class=\"btn primary\" type=\"button\" onclick=\"activateBrowserNotifications()\">🔔 ${granted?'Notificações ativadas':'Ativar notificações'}</button><button class=\"btn ghost\" type=\"button\" onclick=\"sendBrowserNotificationTest()\" ${granted?'':'disabled'}>Enviar teste</button></div><div class=\"browser-notify-note\">Ao ativar, este aparelho é registrado para Push. “Enviar teste” agora solicita a notificação ao servidor, permitindo validar o recebimento mesmo com o MeuPet 360 fechado.</div></div>`;
 }
 
 function notificationsPage(){
