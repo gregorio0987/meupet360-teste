@@ -4441,6 +4441,19 @@ body.onboarding-test .onboarding-test-banner{display:flex}
 /* M106 — horário de medicamentos */
 .med-time-picker{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center}.med-time-picker select{width:100%;min-width:0;font-size:16px;font-weight:700}.med-time-picker>span{font-size:22px;font-weight:800;color:var(--g)}.med-time-help{display:block;margin-top:6px;color:#6d7772}.health-meds td[data-label="Horário"]{font-weight:800;color:var(--g)}
 @media(max-width:840px){.med-time-picker select{height:50px;font-size:18px}.medication-time-field{grid-column:1/-1}.health-meds td[data-label="Horário"]{display:grid!important}}
+
+/* M108 — controle de doses */
+.med-dose-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.med-dose-actions .btn{padding:9px 12px;font-size:13px}
+.med-dose-history{margin-top:12px;padding-top:10px;border-top:1px solid var(--line)}
+.med-dose-history b{display:block;color:var(--g);font-size:12px;margin-bottom:6px}
+.med-dose-history-row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);padding:4px 0}
+.med-dose-done{font-weight:800;color:var(--g)}
+.med-dose-postponed{font-weight:800;color:var(--o)}
+.central-med-actions{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin-top:10px}
+.central-med-actions button{border:1px solid var(--line);background:#fff;color:var(--g);border-radius:10px;padding:7px 9px;font-size:11px;font-weight:800;cursor:pointer}
+.central-med-actions button.primary{background:var(--g);color:#fff;border-color:var(--g)}
+
 </style>
 
 <style>
@@ -5644,16 +5657,54 @@ function daysUntil(v){
  return Math.round((b-a)/86400000);
 }
 function medicationIntervalMinutesUI(freq){const f=String(freq||'').trim().toLowerCase();if(f==='1x ao dia')return 1440;if(f==='a cada 12 horas')return 720;if(f==='a cada 8 horas')return 480;if(f==='a cada 6 horas')return 360;if(f==='a cada 4 horas')return 240;return null}
+function medicationDoseKey(med,date,time){return [med&&med._cloud_id||med&&med.nome||'med',date||'',time||''].join('|')}
+function medicationDoseLog(){db.medDoseLog=Array.isArray(db.medDoseLog)?db.medDoseLog:[];return db.medDoseLog}
+function medicationDoseEntry(med,date,time){const key=medicationDoseKey(med,date,time);return medicationDoseLog().find(x=>x.key===key)||null}
 function medicationNextDoseUI(med,now=new Date()){
  const interval=medicationIntervalMinutesUI(med&&med.freq), time=String(med&&med.horario||'').slice(0,5);if(!interval||!/^[0-2]\d:[0-5]\d$/.test(time))return null;
  const today=localISODateM42(), start=(med.inicio||today), end=(med.fim||'9999-12-31');
- const [h,m]=time.split(':').map(Number), anchor=new Date(`${start}T${time}:00`);if(Number.isNaN(anchor.getTime()))return null;
- let k=Math.max(0,Math.ceil((now.getTime()-anchor.getTime())/(interval*60000)));let d=new Date(anchor.getTime()+k*interval*60000);
+ const anchor=new Date(`${start}T${time}:00`);if(Number.isNaN(anchor.getTime()))return null;
+ let k=Math.max(0,Math.floor((now.getTime()-anchor.getTime())/(interval*60000)));
+ let d=new Date(anchor.getTime()+k*interval*60000);
  if(d<now)d=new Date(d.getTime()+interval*60000);
- const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0'),date=`${y}-${mo}-${da}`;
- if(date<start||date>end)return null;return {date,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,dateTime:d};
+ for(let tries=0;tries<200;tries++){
+   const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0'),date=`${y}-${mo}-${da}`;
+   const doseTime=`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+   if(date>end)return null;
+   if(date>=start){
+     const entry=medicationDoseEntry(med,date,doseTime);
+     if(!entry||entry.status!=='done'){
+       if(entry&&entry.status==='postponed'&&entry.postponedTo){
+         const pd=new Date(entry.postponedTo);
+         if(pd>=now)return {date:localDateFromDateM108(pd),time:timeFromDateM108(pd),dateTime:pd,originalDate:date,originalTime:doseTime,postponed:true};
+       }else return {date,time:doseTime,dateTime:d};
+     }
+   }
+   d=new Date(d.getTime()+interval*60000);
+ }
+ return null;
 }
+function localDateFromDateM108(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`}
+function timeFromDateM108(d){return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`}
 function nextMedicationUI(now=new Date()){return (db.meds||[]).map((med,idx)=>({med,idx,next:medicationNextDoseUI(med,now)})).filter(x=>x.next).sort((a,b)=>a.next.dateTime-b.next.dateTime)[0]||null}
+async function markMedicationDoseDone(idx,date,time){
+ const med=(db.meds||[])[idx];if(!med)return;
+ const key=medicationDoseKey(med,date,time),log=medicationDoseLog(),now=new Date(),existing=log.find(x=>x.key===key);
+ const entry={key,medId:med._cloud_id||'',medName:med.nome||'Medicamento',dose:med.dose||'',scheduledDate:date,scheduledTime:time,status:'done',doneAt:now.toISOString()};
+ if(existing)Object.assign(existing,entry);else log.push(entry);
+ await persist(false);toast('Dose registrada ✓');go('central');
+}
+async function postponeMedicationDose(idx,date,time,minutes=10){
+ const med=(db.meds||[])[idx];if(!med)return;
+ const key=medicationDoseKey(med,date,time),log=medicationDoseLog(),base=new Date(`${date}T${time}:00`),to=new Date(Math.max(Date.now(),base.getTime())+minutes*60000),existing=log.find(x=>x.key===key);
+ const entry={key,medId:med._cloud_id||'',medName:med.nome||'Medicamento',dose:med.dose||'',scheduledDate:date,scheduledTime:time,status:'postponed',postponedTo:to.toISOString(),postponedAt:new Date().toISOString()};
+ if(existing)Object.assign(existing,entry);else log.push(entry);
+ await persist(false);toast(`Dose adiada por ${minutes} min`);go('central');
+}
+function medicationHistoryRows(med){
+ const id=med&&med._cloud_id||'',name=med&&med.nome||'';
+ return medicationDoseLog().filter(x=>(id&&x.medId===id)||(!id&&x.medName===name)).sort((a,b)=>String(b.doneAt||b.postponedAt||'').localeCompare(String(a.doneAt||a.postponedAt||''))).slice(0,5);
+}
 function alertItems(){let a=[];db.vacinas.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=30)a.push({type:'Vacina',name:x.nome,date:x.proxima,d})});db.consultas.forEach(x=>{let d=daysUntil(x.data);if(d!==null&&d>=0&&d<=30)a.push({type:'Consulta',name:x.motivo,date:x.data,d})});db.cuidados.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=14)a.push({type:'Cuidado',name:x.servico,date:x.proxima,d})});const nm=nextMedicationUI();if(nm){const d=daysUntil(nm.next.date);a.push({type:'Medicamento',name:nm.med.nome||'Medicamento',date:nm.next.date,time:nm.next.time,d,med:nm.med})}return a.sort((x,y)=>(x.date+(x.time||'')).localeCompare(y.date+(y.time||'')))}
 function alertText(x){if(x.type==='Medicamento'&&x.time)return x.d===0?`Próxima dose às ${x.time}`:x.d===1?`Amanhã às ${x.time}`:`Próxima dose em ${x.d} dias às ${x.time}`;if(x.d<0)return 'Atrasado há '+Math.abs(x.d)+' dia(s)';if(x.d===0)return 'É hoje';if(x.d===1)return 'Falta 1 dia';return 'Faltam '+x.d+' dias'}
 function alertLevel(x){if(x.d<0)return ['red','ATRASADO'];if(x.d===0)return ['today','HOJE'];if(x.d<=7)return ['orange','PRÓXIMO'];if(x.d<=30)return ['yellow','ATENÇÃO'];return ['green','TUDO CERTO']}
@@ -5881,7 +5932,7 @@ function central(){
      ${centralEventCard(vacSummary,'💉','Vacina','vaccines')}
      ${centralEventCard(conSummary,'🩺','Consulta','consults')}
      ${centralEventCard(careSummary,'✂','Cuidado','care')}
-     <div class="cstat ${medState.cls}${med?' central-health-link':''}" ${med?`onclick="openHealthTarget('meds',[${medInfo.idx}])" role="button" tabindex="0"`:''}><div class="cstat-title">💊 Próximo medicamento</div><div class="cstat-value">${medNext?esc(medNext.time):'—'}</div><div class="cstat-sub">${med?`${esc(med.nome||'Medicamento')}${med.dose?` • ${esc(med.dose)}`:''}`:'Nenhuma próxima dose programada'}</div><div class="cstat-pill">${medState.label}</div>${medNext?`<div class="cstat-next">${dateBR(medNext.date)} • ${esc(med.freq||'')}</div>`:''}</div>
+     <div class="cstat ${medState.cls}${med?' central-health-link':''}"><div ${med?`onclick="openHealthTarget('meds',[${medInfo.idx}])" role="button" tabindex="0"`:''}><div class="cstat-title">💊 Próximo medicamento</div><div class="cstat-value">${medNext?esc(medNext.time):'—'}</div><div class="cstat-sub">${med?`${esc(med.nome||'Medicamento')}${med.dose?` • ${esc(med.dose)}`:''}`:'Nenhuma próxima dose programada'}</div><div class="cstat-pill">${medState.label}</div>${medNext?`<div class="cstat-next">${dateBR(medNext.date)} • ${esc(med.freq||'')}${medNext.postponed?' • Adiado':''}</div>`:''}</div>${med&&medNext?`<div class="central-med-actions"><button class="primary" onclick="event.stopPropagation();markMedicationDoseDone(${medInfo.idx},'${medNext.originalDate||medNext.date}','${medNext.originalTime||medNext.time}')">✓ Dar medicamento</button><button onclick="event.stopPropagation();postponeMedicationDose(${medInfo.idx},'${medNext.originalDate||medNext.date}','${medNext.originalTime||medNext.time}',10)">＋10 min</button></div>`:''}</div>
    </div>
 
    <div class="central-summary">
@@ -6168,9 +6219,23 @@ function healthPage(){
  document.getElementById('saude').innerHTML=header('Saúde','Vacinas, consultas, medicamentos e cuidados.')+pageIntro('heart','Saúde em ordem','Histórico clínico e cuidados importantes reunidos em um só lugar.')+
  `<div class="section health-section health-vaccines"><div class="top"><h2>Vacinas</h2><button class="btn primary" onclick="openVacina()">＋ Adicionar</button></div>${healthTable(v,[['nome','Vacina'],['ultima','Última dose',dateBR],['proxima','Próxima dose',dateBR],['vet','Veterinário']],'vaccines')}</div>
  <div class="section health-section health-consults"><div class="top"><h2>Consultas</h2><button class="btn secondary" onclick="openConsulta()">＋ Adicionar</button></div>${healthTable(c,[['data','Data da consulta',dateBR],['motivo','Motivo'],['vet','Clínica / Veterinário'],['retorno','Retorno',dateBR]],'consults')}</div>
- <div class="section health-section health-meds"><div class="top"><h2>Medicamentos</h2><button class="btn secondary" onclick="openMed()">＋ Adicionar</button></div>${healthTable(m,[['nome','Medicamento'],['dose','Dose'],['freq','Frequência'],['horario','Horário'],['inicio','Início do tratamento',dateBR],['fim','Fim do tratamento',dateBR]],'meds')}</div>
+ <div class="section health-section health-meds"><div class="top"><h2>Medicamentos</h2><button class="btn secondary" onclick="openMed()">＋ Adicionar</button></div>${medicationHealthCards(m)}</div>
  <div class="section health-section health-care"><div class="top"><h2>Cuidados</h2><button class="btn secondary" onclick="openHealthCare()">＋ Adicionar</button></div>${healthCareCards()}</div>`
 }
+function medicationHealthCards(items){
+ if(!items.length)return `<div class="card empty">Nenhum medicamento registrado ainda. Use o botão acima quando quiser adicionar.</div>`;
+ return `<div class="health-care-list">${items.map(m=>{
+   const i=m._idx,next=medicationNextDoseUI(db.meds[i]),hist=medicationHistoryRows(db.meds[i]);
+   return `<div class="routine-care-card" data-health-index="${i}">
+     <div class="routine-care-top"><div><b>${esc(m.nome||'Medicamento')}</b><small>${esc(m.freq||'')}</small></div>${m.horario?`<strong>${esc(m.horario)}</strong>`:''}</div>
+     <div class="routine-care-time">${m.dose?`Dose: ${esc(m.dose)}`:''}${m.inicio?` • Início: ${dateBR(m.inicio)}`:''}${m.fim?` • Fim: ${dateBR(m.fim)}`:''}</div>
+     ${next?`<div class="med-dose-actions"><button class="btn primary" onclick="markMedicationDoseDone(${i},'${next.originalDate||next.date}','${next.originalTime||next.time}')">✓ Dar medicamento</button><button class="btn ghost" onclick="postponeMedicationDose(${i},'${next.originalDate||next.date}','${next.originalTime||next.time}',10)">Adiar 10 min</button></div>`:''}
+     ${hist.length?`<div class="med-dose-history"><b>Últimas doses</b>${hist.map(h=>`<div class="med-dose-history-row"><span>${dateBR(h.scheduledDate)} • ${esc(h.scheduledTime)}</span><span class="${h.status==='done'?'med-dose-done':'med-dose-postponed'}">${h.status==='done'?'✓ Administrado':'Adiado'}</span></div>`).join('')}</div>`:''}
+     <div class="routine-care-actions"><button onclick="openMed(${i})">Editar</button><button class="del" onclick="delMed(${i})">Excluir</button></div>
+   </div>`;
+ }).join('')}</div>`;
+}
+
 function healthCareCards(){
  const cs=healthSortM74(db.cuidados||[],'care');
  if(!cs.length)return `<div class="card empty">Nenhum cuidado registrado ainda. Use o botão acima quando quiser adicionar.</div>`;
