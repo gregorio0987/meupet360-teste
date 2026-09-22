@@ -4454,6 +4454,25 @@ body.onboarding-test .onboarding-test-banner{display:flex}
 .central-med-actions button{border:1px solid var(--line);background:#fff;color:var(--g);border-radius:10px;padding:7px 9px;font-size:11px;font-weight:800;cursor:pointer}
 .central-med-actions button.primary{background:var(--g);color:#fff;border-color:var(--g)}
 
+
+/* M109 — Hoje com o pet */
+.today-pet{margin:18px 0;background:linear-gradient(135deg,#fff,#f8fbfa);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:0 8px 24px rgba(0,0,0,.04)}
+.today-pet-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:14px}
+.today-pet-head h3{margin:0;color:var(--g);font-size:18px}
+.today-pet-head .sub{margin-top:3px}
+.today-pet-progress{font-size:12px;font-weight:800;color:var(--g);background:#eef7f3;border-radius:999px;padding:7px 10px;white-space:nowrap}
+.today-pet-list{display:grid;gap:9px}
+.today-pet-item{display:grid;grid-template-columns:34px 1fr auto;gap:10px;align-items:center;border:1px solid var(--line);border-radius:14px;padding:11px 12px;background:#fff;cursor:pointer}
+.today-pet-item.done{opacity:.68;background:#f7faf9}
+.today-pet-item.late{border-color:#f1c9c9;background:#fffafa}
+.today-pet-icon{font-size:20px;text-align:center}
+.today-pet-main b{display:block;color:var(--text);font-size:13px}
+.today-pet-main span{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.today-pet-status{font-size:11px;font-weight:900;border-radius:999px;padding:6px 8px;background:#f2f4f3;color:var(--muted);white-space:nowrap}
+.today-pet-item.done .today-pet-status{background:#e9f6ef;color:var(--g)}
+.today-pet-item.late .today-pet-status{background:#fff0f0;color:#b43d3d}
+.today-pet-empty{text-align:center;padding:18px 10px;color:var(--muted);font-size:13px}
+@media(max-width:600px){.today-pet{padding:14px}.today-pet-head{align-items:center}.today-pet-item{grid-template-columns:30px 1fr auto;padding:10px}.today-pet-status{font-size:10px}}
 </style>
 
 <style>
@@ -5859,6 +5878,31 @@ function centralEventCard(summary,icon,kind,healthKind){
 }
 
 
+
+function todayPetItemsM109(){
+ const today=localISODateM42(),items=[];
+ (db.vacinas||[]).forEach((x,i)=>{if(x.proxima===today)items.push({icon:'💉',title:x.nome||'Vacina',sub:'Vacina prevista para hoje',status:'Hoje',kind:'vaccines',idx:i,done:false})});
+ (db.consultas||[]).forEach((x,i)=>{if(x.data===today)items.push({icon:'🩺',title:x.motivo||x.vet||'Consulta',sub:x.vet||'Consulta agendada',status:'Hoje',kind:'consults',idx:i,done:false});if(x.retorno===today)items.push({icon:'🩺',title:'Retorno'+(x.vet?' • '+x.vet:''),sub:x.motivo||'Retorno de consulta',status:'Hoje',kind:'consults',idx:i,done:false})});
+ (db.cuidados||[]).forEach((x,i)=>{if(x.proxima===today)items.push({icon:'✂️',title:x.servico||x.tipo||'Cuidado',sub:'Cuidado programado para hoje',status:'Hoje',kind:'care',idx:i,done:false})});
+ (db.meds||[]).forEach((m,i)=>{
+   const interval=medicationIntervalMinutesUI(m.freq),first=String(m.horario||'').slice(0,5);
+   if(!interval||!/^\d{2}:\d{2}$/.test(first)||m.inicio&&m.inicio>today||m.fim&&m.fim<today)return;
+   const firstMin=Number(first.slice(0,2))*60+Number(first.slice(3,5));
+   for(let min=firstMin;min<1440;min+=interval){
+     const tm=`${String(Math.floor(min/60)).padStart(2,'0')}:${String(min%60).padStart(2,'0')}`;
+     const log=medicationDoseEntry(m,today,tm),done=log&&log.status==='done',post=log&&log.status==='postponed';
+     const now=new Date(),nowMin=now.getHours()*60+now.getMinutes(),late=!done&&!post&&min<nowMin;
+     items.push({icon:'💊',title:m.nome||'Medicamento',sub:`${tm}${m.dose?' • '+m.dose:''}`,status:done?'Concluído':post?'Adiado':late?'Atrasado':'Pendente',kind:'meds',idx:i,done,late,time:tm,date:today});
+   }
+ });
+ return items.sort((a,b)=>{if(a.done!==b.done)return a.done?1:-1;if(a.kind==='meds'&&b.kind==='meds')return (a.time||'').localeCompare(b.time||'');return 0});
+}
+function todayPetHtmlM109(petName){
+ const items=todayPetItemsM109(),done=items.filter(x=>x.done).length,total=items.length;
+ const rows=items.length?items.map(x=>`<div class="today-pet-item ${x.done?'done':''} ${x.late?'late':''}" onclick="${x.kind==='meds'&&!x.done?`markMedicationDoseDone(${x.idx},'${x.date}','${x.time}')`:`openHealthTarget('${x.kind}',[${x.idx}])`}"><div class="today-pet-icon">${x.done?'✓':x.icon}</div><div class="today-pet-main"><b>${esc(x.title)}</b><span>${esc(x.sub)}</span></div><div class="today-pet-status">${esc(x.status)}</div></div>`).join(''):`<div class="today-pet-empty">✨ Nada pendente para hoje. Aproveite o dia com ${esc(petName)}!</div>`;
+ return `<div class="today-pet"><div class="today-pet-head"><div><h3>Hoje com ${esc(petName)}</h3><div class="sub">Tudo que merece sua atenção hoje, em um só lugar.</div></div>${total?`<div class="today-pet-progress">${done}/${total} concluído${total===1?'':'s'}</div>`:''}</div><div class="today-pet-list">${rows}</div></div>`;
+}
+
 function central(){
  const p=db.pet||{};
  const vacSummary=centralEventSummary(db.vacinas||[],'proxima',x=>x.nome||'Vacina','Vacina');
@@ -5927,6 +5971,8 @@ function central(){
      </div>
      <div class="central-story"></div>
    </div>
+
+   ${todayPetHtmlM109(petName)}
 
    <div class="central-status">
      ${centralEventCard(vacSummary,'💉','Vacina','vaccines')}
