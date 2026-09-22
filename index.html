@@ -26,7 +26,7 @@ nav button:hover,nav button.active{background:linear-gradient(90deg,#ffffff1f,#f
 table{width:100%;border-collapse:collapse;background:#fff;border:1px solid var(--line);border-radius:16px;overflow:hidden}th,td{padding:12px;text-align:left;border-bottom:1px solid var(--line);font-size:14px}th{background:var(--mint);color:var(--g)}
 .empty{color:var(--muted);font-style:italic}.row-actions button{border:0;background:none;font-weight:800;color:var(--g);cursor:pointer}.row-actions .del{color:var(--red)}
 .modal{position:fixed;inset:0;background:#0007;display:none;place-items:center;padding:18px;z-index:20}.modal.open{display:grid}.modalbox{background:var(--bg);width:min(680px,100%);max-height:90vh;overflow:auto;border-radius:21px;padding:22px}.modalhead{display:flex;justify-content:space-between;align-items:center}.x{border:0;background:none;font-size:26px;cursor:pointer}
-.toast{position:fixed;right:20px;bottom:20px;background:var(--g);color:#fff;padding:13px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:30}.toast.show{opacity:1}
+.toast{position:fixed;right:20px;bottom:max(20px,calc(env(safe-area-inset-bottom) + 20px));background:var(--g);color:#fff;padding:13px 16px;border-radius:12px;opacity:0;pointer-events:none;transition:.2s;z-index:30}.toast.show{opacity:1}
 .note{background:var(--yellow);border:1px solid #ecd4aa;border-radius:14px;padding:14px;color:#76511e}
 .alert-card{border-left:6px solid var(--line)}
 .alert-green{background:#edf8f1;border-left-color:#3d9b62}.alert-yellow{background:#fff8dc;border-left-color:#d8ae25}
@@ -4436,6 +4436,11 @@ body.onboarding-test .onboarding-test-banner{display:flex}
 }
 @media(max-width:840px){#central .central-tutor-profile-right{display:none!important;}}
 
+@media(max-width:840px){.toast{left:18px;right:18px;bottom:calc(92px + env(safe-area-inset-bottom));text-align:center;z-index:9999}}
+
+/* M106 — horário de medicamentos */
+.med-time-picker{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center}.med-time-picker select{width:100%;min-width:0;font-size:16px;font-weight:700}.med-time-picker>span{font-size:22px;font-weight:800;color:var(--g)}.med-time-help{display:block;margin-top:6px;color:#6d7772}.health-meds td[data-label="Horário"]{font-weight:800;color:var(--g)}
+@media(max-width:840px){.med-time-picker select{height:50px;font-size:18px}.medication-time-field{grid-column:1/-1}.health-meds td[data-label="Horário"]{display:grid!important}}
 </style>
 
 <style>
@@ -5125,6 +5130,12 @@ body.onboarding-test .onboarding-test-banner{display:flex}
   }
 }
 </style>
+
+<style>
+/* M104 — notificações reais: bloco visível na tela existente */
+.browser-notify-card{max-width:820px;margin:16px auto;background:var(--card);border:1px solid var(--line);border-radius:22px;padding:20px;box-shadow:0 8px 24px #17362b0b}.browser-notify-top{display:flex;gap:13px;align-items:center}.browser-notify-icon{width:46px;height:46px;border-radius:15px;background:var(--mint);display:grid;place-items:center;font-size:22px}.browser-notify-status{padding:7px 10px;border-radius:999px;font-size:11px;font-weight:900;background:#eee;color:var(--muted)}.browser-notify-card.on .browser-notify-status{background:#d9f0e1;color:#24643d}.browser-notify-card.blocked .browser-notify-status{background:#f6cccc;color:#8f2929}.browser-notify-actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.browser-notify-actions .btn[disabled]{opacity:.45;cursor:not-allowed}.browser-notify-note{margin-top:12px;font-size:12px;line-height:1.45;color:var(--muted)}
+@media(max-width:840px){.browser-notify-card{margin:12px 0;padding:16px}.browser-notify-top{align-items:flex-start}.browser-notify-status{margin-left:auto}.browser-notify-actions{display:grid;grid-template-columns:1fr}.browser-notify-actions .btn{width:100%}}
+</style>
 </head>
 <body>
 <div class="app">
@@ -5159,6 +5170,7 @@ let sbClient=null;
 let sbSession=null;
 const SUPABASE_URL='https://tvothtukcvsaoerdiabr.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_z_z4oYRXPVq9aBa9D3Joyg_brRhkjUG';
+const VAPID_PUBLIC_KEY='BH_5JlG-a-pqGa77nojE9-CXRt7pfWs7dqHanZAQTJwLnbsKc5QRSyI8KcMQKDhQLDioNvzdtEaSVvlKlNhfhoc';
 const LAST_AUTH_USER_KEY='meupet360_last_auth_user';
 function getSupabaseConfig(){return {url:SUPABASE_URL,key:SUPABASE_PUBLISHABLE_KEY}}
 function validSupabaseConfig(c){return !!(c&&/^https:\/\/.+\.supabase\.co\/?$/i.test(c.url||'')&&String(c.key||'').startsWith('sb_publishable_'))}
@@ -5362,7 +5374,7 @@ function localItemToCloud(kind,x,petId){
  const base={user_id:sbSession.user.id,pet_id:petId,updated_at:new Date().toISOString()};
  if(kind==='vacinas')return {...base,name:x.nome||'Vacina',last_dose:cleanNull(x.ultima),next_dose:cleanNull(x.proxima),veterinarian:cleanNull(x.vet),lot:cleanNull(x.lote),notes:cleanNull(x.obs)};
  if(kind==='consultas')return {...base,appointment_date:x.data,reason:cleanNull(x.motivo),clinic_veterinarian:cleanNull(x.vet),return_date:cleanNull(x.retorno),notes:cleanNull(x.obs)};
- if(kind==='meds')return {...base,name:x.nome||'Medicamento',start_date:cleanNull(x.inicio),end_date:cleanNull(x.fim),dosage:cleanNull(x.dose),frequency:cleanNull(x.freq),medication_time:cleanNull(x.horario),reminder_enabled:true,notes:cleanNull(x.obs)};
+ if(kind==='meds')return {...base,name:x.nome||'Medicamento',start_date:cleanNull(x.inicio),end_date:cleanNull(x.fim),dosage:cleanNull(x.dose),frequency:cleanNull(x.freq),medication_time:cleanNull(x.horario),reminder_enabled:!!(x.horario&&medicationIntervalMinutesUI(x.freq)),notes:cleanNull(x.obs)};
  if(kind==='cuidados')return {...base,title:x.servico||x.tipo||'Cuidado',care_date:cleanNull(x.proxima||x.ultima),frequency:cleanNull(x.frequencia),location:cleanNull(x.local),last_done:cleanNull(x.ultimaRealizacao||x.ultima),care_time:cleanNull(x.horario),notes:cleanNull(x.obs)};
  if(kind==='gastos')return {...base,title:x.descricao||'Gasto',category:x.categoria||'Outros',amount:Number(String(x.valor||0).replace(',','.'))||0,expense_date:x.data,location:cleanNull(x.local),notes:cleanNull(x.obs)};
  if(kind==='pesos')return {...base,weight_date:x.data,weight_kg:Number(String(x.peso||0).replace(',','.'))||0,notes:cleanNull(x.obs)};
@@ -5371,7 +5383,7 @@ function localItemToCloud(kind,x,petId){
 function cloudItemToLocal(kind,r){
  if(kind==='vacinas')return {_cloud_id:r.id,nome:r.name||'',ultima:r.last_dose||'',proxima:r.next_dose||'',vet:r.veterinarian||'',lote:r.lot||'',obs:r.notes||''};
  if(kind==='consultas')return {_cloud_id:r.id,data:r.appointment_date||'',motivo:r.reason||'',vet:r.clinic_veterinarian||'',retorno:r.return_date||'',obs:r.notes||''};
- if(kind==='meds')return {_cloud_id:r.id,nome:r.name||'',dose:r.dosage||'',freq:r.frequency||'',horario:r.medication_time||'',inicio:r.start_date||'',fim:r.end_date||'',obs:r.notes||''};
+ if(kind==='meds')return {_cloud_id:r.id,nome:r.name||'',dose:r.dosage||'',freq:r.frequency||'',horario:(r.medication_time||'').slice(0,5),inicio:r.start_date||'',fim:r.end_date||'',obs:r.notes||''};
  if(kind==='cuidados')return {_cloud_id:r.id,servico:r.title||'',frequencia:r.frequency||'',proxima:r.care_date||'',local:r.location||'',ultimaRealizacao:r.last_done||'',horario:r.care_time||'',obs:r.notes||''};
  if(kind==='gastos')return {_cloud_id:r.id,descricao:r.title||'',categoria:r.category||'Outros',valor:r.amount==null?'':String(r.amount),data:r.expense_date||'',local:r.location||'',obs:r.notes||''};
  if(kind==='pesos')return {_cloud_id:r.id,data:r.weight_date||'',peso:r.weight_kg==null?'':String(r.weight_kg),obs:r.notes||''};
@@ -5631,8 +5643,19 @@ function daysUntil(v){
  const b=Date.UTC(+m[1],+m[2]-1,+m[3]);
  return Math.round((b-a)/86400000);
 }
-function alertItems(){let a=[];db.vacinas.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=30)a.push({type:'Vacina',name:x.nome,date:x.proxima,d})});db.consultas.forEach(x=>{let d=daysUntil(x.data);if(d!==null&&d>=0&&d<=30)a.push({type:'Consulta',name:x.motivo,date:x.data,d})});db.cuidados.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=14)a.push({type:'Cuidado',name:x.servico,date:x.proxima,d})});return a.sort((x,y)=>x.date.localeCompare(y.date))}
-function alertText(x){if(x.d<0)return 'Atrasado há '+Math.abs(x.d)+' dia(s)';if(x.d===0)return 'É hoje';if(x.d===1)return 'Falta 1 dia';return 'Faltam '+x.d+' dias'}
+function medicationIntervalMinutesUI(freq){const f=String(freq||'').trim().toLowerCase();if(f==='1x ao dia')return 1440;if(f==='a cada 12 horas')return 720;if(f==='a cada 8 horas')return 480;if(f==='a cada 6 horas')return 360;if(f==='a cada 4 horas')return 240;return null}
+function medicationNextDoseUI(med,now=new Date()){
+ const interval=medicationIntervalMinutesUI(med&&med.freq), time=String(med&&med.horario||'').slice(0,5);if(!interval||!/^[0-2]\d:[0-5]\d$/.test(time))return null;
+ const today=localISODateM42(), start=(med.inicio||today), end=(med.fim||'9999-12-31');
+ const [h,m]=time.split(':').map(Number), anchor=new Date(`${start}T${time}:00`);if(Number.isNaN(anchor.getTime()))return null;
+ let k=Math.max(0,Math.ceil((now.getTime()-anchor.getTime())/(interval*60000)));let d=new Date(anchor.getTime()+k*interval*60000);
+ if(d<now)d=new Date(d.getTime()+interval*60000);
+ const y=d.getFullYear(),mo=String(d.getMonth()+1).padStart(2,'0'),da=String(d.getDate()).padStart(2,'0'),date=`${y}-${mo}-${da}`;
+ if(date<start||date>end)return null;return {date,time:`${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`,dateTime:d};
+}
+function nextMedicationUI(now=new Date()){return (db.meds||[]).map((med,idx)=>({med,idx,next:medicationNextDoseUI(med,now)})).filter(x=>x.next).sort((a,b)=>a.next.dateTime-b.next.dateTime)[0]||null}
+function alertItems(){let a=[];db.vacinas.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=30)a.push({type:'Vacina',name:x.nome,date:x.proxima,d})});db.consultas.forEach(x=>{let d=daysUntil(x.data);if(d!==null&&d>=0&&d<=30)a.push({type:'Consulta',name:x.motivo,date:x.data,d})});db.cuidados.forEach(x=>{let d=daysUntil(x.proxima);if(d!==null&&d<=14)a.push({type:'Cuidado',name:x.servico,date:x.proxima,d})});const nm=nextMedicationUI();if(nm){const d=daysUntil(nm.next.date);a.push({type:'Medicamento',name:nm.med.nome||'Medicamento',date:nm.next.date,time:nm.next.time,d,med:nm.med})}return a.sort((x,y)=>(x.date+(x.time||'')).localeCompare(y.date+(y.time||'')))}
+function alertText(x){if(x.type==='Medicamento'&&x.time)return x.d===0?`Próxima dose às ${x.time}`:x.d===1?`Amanhã às ${x.time}`:`Próxima dose em ${x.d} dias às ${x.time}`;if(x.d<0)return 'Atrasado há '+Math.abs(x.d)+' dia(s)';if(x.d===0)return 'É hoje';if(x.d===1)return 'Falta 1 dia';return 'Faltam '+x.d+' dias'}
 function alertLevel(x){if(x.d<0)return ['red','ATRASADO'];if(x.d===0)return ['today','HOJE'];if(x.d<=7)return ['orange','PRÓXIMO'];if(x.d<=30)return ['yellow','ATENÇÃO'];return ['green','TUDO CERTO']}
 
 
@@ -5794,19 +5817,13 @@ function central(){
  const nc=conSummary.primary&&conSummary.primary.item;
  const nr=careSummary.primary&&careSummary.primary.item;
  const todayM74=localISODateM42();
- const activeMeds=(db.meds||[]).filter(x=>(!x.inicio||x.inicio<=todayM74)&&(!x.fim||x.fim>=todayM74));
- const futureMeds=(db.meds||[]).filter(x=>x.inicio&&x.inicio>todayM74).sort((a,b)=>a.inicio.localeCompare(b.inicio));
- const med=activeMeds[0]||futureMeds[0]||null;
- const medIsActive=!!activeMeds.length;
-
- // Medicamentos ainda não possuem horário/data de próxima dose no MVP.
- // Mantemos neutro para não gerar um alerta enganoso.
- const medStartDays=med&&!medIsActive?daysUntil(med.inicio):null;
- const medState=medIsActive
-   ? {cls:'state-green',label:'Em uso'}
-   : med
-     ? {cls:'state-yellow',label:medStartDays===0?'Inicia hoje':medStartDays===1?'Inicia em 1 dia':`Inicia em ${medStartDays} dias`}
-     : {cls:'state-neutral',label:'Sem medicamento ativo'};
+ const medInfo=nextMedicationUI();
+ const med=medInfo?medInfo.med:null;
+ const medNext=medInfo?medInfo.next:null;
+ const medDays=medNext?daysUntil(medNext.date):null;
+ const medState=medNext
+   ? {cls:medDays===0?'state-today':medDays<=7?'state-orange':'state-green',label:medDays===0?'Hoje':medDays===1?'Amanhã':`Em ${medDays} dias`}
+   : {cls:'state-neutral',label:'Sem próxima dose'};
  const now=new Date();
  const petName=esc(p.nome||'Seu pet');
  const photo=p.foto?`<img class="central-pet-photo" src="${p.foto}">`:`<div class="central-pet-photo" style="display:grid;place-items:center;font-size:62px">🐾</div>`;
@@ -5864,7 +5881,7 @@ function central(){
      ${centralEventCard(vacSummary,'💉','Vacina','vaccines')}
      ${centralEventCard(conSummary,'🩺','Consulta','consults')}
      ${centralEventCard(careSummary,'✂','Cuidado','care')}
-     <div class="cstat ${medState.cls}${med?' central-health-link':''}" ${med?`onclick="openHealthTarget('meds',[${(db.meds||[]).indexOf(med)}])" role="button" tabindex="0"`:''}><div class="cstat-title">💊 Próximo medicamento</div><div class="cstat-value">${med?esc(med.freq||'Em uso'):'—'}</div><div class="cstat-sub">${med?esc(med.nome||'Medicamento'):'Nenhum medicamento cadastrado'}</div><div class="cstat-pill">${medState.label}</div></div>
+     <div class="cstat ${medState.cls}${med?' central-health-link':''}" ${med?`onclick="openHealthTarget('meds',[${medInfo.idx}])" role="button" tabindex="0"`:''}><div class="cstat-title">💊 Próximo medicamento</div><div class="cstat-value">${medNext?esc(medNext.time):'—'}</div><div class="cstat-sub">${med?`${esc(med.nome||'Medicamento')}${med.dose?` • ${esc(med.dose)}`:''}`:'Nenhuma próxima dose programada'}</div><div class="cstat-pill">${medState.label}</div>${medNext?`<div class="cstat-next">${dateBR(medNext.date)} • ${esc(med.freq||'')}</div>`:''}</div>
    </div>
 
    <div class="central-summary">
@@ -6074,7 +6091,19 @@ function activePetBadge(){
    </select>
  </span>`;
 }
-function field(n,l,v='',type='text',req=false,opts=''){if(type==='select')return `<div class="field"><label>${l}</label><select name="${n}"><option value="">Selecione</option>${opts.split('|').map(o=>`<option ${v===o?'selected':''}>${o}</option>`).join('')}</select></div>`; if(type==='textarea')return `<div class="field full"><label>${l}</label><textarea name="${n}">${esc(v)}</textarea></div>`;return `<div class="field"><label>${l}</label><input name="${n}" type="${type}" value="${esc(v)}" ${req?'required':''}></div>`}
+function field(n,l,v='',type='text',req=false,opts=''){
+ if(type==='select')return `<div class="field"><label>${l}</label><select name="${n}"><option value="">Selecione</option>${opts.split('|').map(o=>`<option ${v===o?'selected':''}>${o}</option>`).join('')}</select></div>`;
+ if(type==='textarea')return `<div class="field full"><label>${l}</label><textarea name="${n}">${esc(v)}</textarea></div>`;
+ if(type==='time'){
+  const vv=String(v||'').slice(0,5), parts=vv.split(':'), hh=parts[0]||'', mm=parts[1]||'';
+  const hours=Array.from({length:24},(_,i)=>String(i).padStart(2,'0'));
+  const mins=Array.from({length:60},(_,i)=>String(i).padStart(2,'0'));
+  return `<div class="field medication-time-field"><label>${l}</label><div class="med-time-picker"><select aria-label="Hora" onchange="syncMedicationTimeField(this)"><option value="">Hora</option>${hours.map(x=>`<option value="${x}" ${x===hh?'selected':''}>${x}</option>`).join('')}</select><span>:</span><select aria-label="Minuto" onchange="syncMedicationTimeField(this)"><option value="">Min</option>${mins.map(x=>`<option value="${x}" ${x===mm?'selected':''}>${x}</option>`).join('')}</select><input type="hidden" name="${n}" value="${esc(vv)}"></div><small class="med-time-help">Defina hora e minuto da primeira dose.</small></div>`;
+ }
+ return `<div class="field"><label>${l}</label><input name="${n}" type="${type}" value="${esc(v)}" ${req?'required':''}></div>`
+}
+function syncMedicationTimeField(el){const box=el.closest('.med-time-picker');if(!box)return;const sels=box.querySelectorAll('select'),hidden=box.querySelector('input[type=hidden]');if(hidden)hidden.value=sels[0].value&&sels[1].value?`${sels[0].value}:${sels[1].value}`:''}
+
 function petPage(){const p=db.pet;document.getElementById('pet').innerHTML=header('Meu Pet','Cadastro completo, mas sem complicação.')+pageIntro('paw','Identidade do seu pet','Mantenha os dados principais e contatos importantes sempre atualizados.')+petManager()+
  `<div class="formcard"><form id="petForm"><details class="pet-id-details" open><summary><span>Identificação</span><small>Dados principais do seu pet</small></summary>
  <div class="pet-photo-editor-card">
@@ -6139,7 +6168,7 @@ function healthPage(){
  document.getElementById('saude').innerHTML=header('Saúde','Vacinas, consultas, medicamentos e cuidados.')+pageIntro('heart','Saúde em ordem','Histórico clínico e cuidados importantes reunidos em um só lugar.')+
  `<div class="section health-section health-vaccines"><div class="top"><h2>Vacinas</h2><button class="btn primary" onclick="openVacina()">＋ Adicionar</button></div>${healthTable(v,[['nome','Vacina'],['ultima','Última dose',dateBR],['proxima','Próxima dose',dateBR],['vet','Veterinário']],'vaccines')}</div>
  <div class="section health-section health-consults"><div class="top"><h2>Consultas</h2><button class="btn secondary" onclick="openConsulta()">＋ Adicionar</button></div>${healthTable(c,[['data','Data da consulta',dateBR],['motivo','Motivo'],['vet','Clínica / Veterinário'],['retorno','Retorno',dateBR]],'consults')}</div>
- <div class="section health-section health-meds"><div class="top"><h2>Medicamentos</h2><button class="btn secondary" onclick="openMed()">＋ Adicionar</button></div>${healthTable(m,[['nome','Medicamento'],['dose','Dose'],['freq','Frequência'],['inicio','Início do tratamento',dateBR],['fim','Fim do tratamento',dateBR]],'meds')}</div>
+ <div class="section health-section health-meds"><div class="top"><h2>Medicamentos</h2><button class="btn secondary" onclick="openMed()">＋ Adicionar</button></div>${healthTable(m,[['nome','Medicamento'],['dose','Dose'],['freq','Frequência'],['horario','Horário'],['inicio','Início do tratamento',dateBR],['fim','Fim do tratamento',dateBR]],'meds')}</div>
  <div class="section health-section health-care"><div class="top"><h2>Cuidados</h2><button class="btn secondary" onclick="openHealthCare()">＋ Adicionar</button></div>${healthCareCards()}</div>`
 }
 function healthCareCards(){
@@ -6963,10 +6992,77 @@ function toggleCentralBell(e){if(e)e.stopPropagation();const p=document.getEleme
 function openAlertFromBell(type){const map={Vacina:'vaccines',Consulta:'consults',Cuidado:'care',Medicamento:'meds'};const k=map[type];if(k)openHealthTarget(k,[]);else go('saude')}
 async function toggleNotifyPref(k){const p=notifyPrefs();p[k]=!p[k];await persist(false);go('notificacoes');toast('Preferência atualizada')}
 async function setNotifyDays(v){notifyPrefs().days=Number(v)||7;await persist(false);go('notificacoes');toast('Antecedência atualizada')}
+function browserNotifySupported(){return 'Notification' in window && 'serviceWorker' in navigator}
+function browserNotifyStatus(){
+ if(!browserNotifySupported())return {cls:'off',label:'Indisponível',text:'Este navegador não oferece suporte às notificações do MeuPet 360.'};
+ if(Notification.permission==='granted')return {cls:'on',label:'Ativadas',text:'Este aparelho está autorizado a receber notificações do MeuPet 360.'};
+ if(Notification.permission==='denied')return {cls:'blocked',label:'Bloqueadas',text:'As notificações foram bloqueadas neste navegador. Libere a permissão nas configurações do site.'};
+ return {cls:'off',label:'Desativadas',text:'Ative para receber avisos do MeuPet 360 neste aparelho.'};
+}
+async function registerMeuPetSW(){
+ if(!('serviceWorker' in navigator))throw new Error('Service Worker indisponível');
+ return await navigator.serviceWorker.register('./meupet360-sw.js');
+}
+function urlBase64ToUint8Array(base64String){
+ const padding='='.repeat((4-base64String.length%4)%4);
+ const base64=(base64String+padding).replace(/-/g,'+').replace(/_/g,'/');
+ const rawData=atob(base64);
+ return Uint8Array.from([...rawData].map(c=>c.charCodeAt(0)));
+}
+async function getPushSubscription(){
+ const reg=await registerMeuPetSW();
+ await navigator.serviceWorker.ready;
+ let sub=await reg.pushManager.getSubscription();
+ if(!sub){
+  sub=await reg.pushManager.subscribe({userVisibleOnly:true,applicationServerKey:urlBase64ToUint8Array(VAPID_PUBLIC_KEY)});
+ }
+ return sub;
+}
+async function savePushSubscription(sub){
+ if(!sbClient||!sbSession?.user)throw new Error('Faça login para ativar as notificações.');
+ const j=sub.toJSON();
+ const row={user_id:sbSession.user.id,endpoint:j.endpoint,p256dh:j.keys?.p256dh,auth:j.keys?.auth,updated_at:new Date().toISOString()};
+ if(!row.endpoint||!row.p256dh||!row.auth)throw new Error('Assinatura Push incompleta.');
+ const {error}=await sbClient.from('push_subscriptions').upsert(row,{onConflict:'endpoint'});
+ if(error)throw error;
+ return j;
+}
+async function activateBrowserNotifications(){
+ if(!browserNotifySupported()){toast('Notificações não suportadas neste navegador');return}
+ try{
+  await registerMeuPetSW();
+  const permission=Notification.permission==='granted'?'granted':await Notification.requestPermission();
+  if(permission==='granted'){
+   const sub=await getPushSubscription();
+   await savePushSubscription(sub);
+   notificationsPage();
+   toast('Notificações ativadas e aparelho conectado');
+  }else if(permission==='denied'){notificationsPage();toast('Permissão de notificações bloqueada')}
+  else{notificationsPage();toast('Permissão não concedida')}
+ }catch(e){console.error('Notificações:',e);toast(e?.message||'Não foi possível ativar as notificações')}
+}
+async function sendBrowserNotificationTest(){
+ if(!browserNotifySupported()){toast('Notificações não suportadas neste navegador');return}
+ if(Notification.permission!=='granted'){toast('Ative as notificações primeiro');return}
+ try{
+  const sub=await getPushSubscription();
+  const subscription=await savePushSubscription(sub);
+  const {data,error}=await sbClient.functions.invoke('send-push-notification',{body:{subscription,title:'MeuPet 360 🐾',message:'Teste do servidor concluído! O Push do MeuPet 360 chegou até este aparelho.',url:location.href}});
+  if(error)throw error;
+  if(data?.success===false)throw new Error(data.error||'Falha no envio do Push');
+  toast('Push de teste solicitado ao servidor');
+ }catch(e){console.error('Teste Push:',e);toast(e?.message||'Não foi possível enviar o Push de teste')}
+}
+function browserNotifyCard(){
+ const st=browserNotifyStatus();
+ const granted=browserNotifySupported() && Notification.permission==='granted';
+ return `<div class=\"browser-notify-card ${st.cls}\"><div class=\"browser-notify-top\"><div class=\"browser-notify-icon\">🔔</div><div style=\"flex:1\"><div class=\"mini-title\" style=\"margin:0 0 4px\">Notificações no celular</div><div class=\"sub\">${st.text}</div></div><span class=\"browser-notify-status\">${st.label}</span></div><div class=\"browser-notify-actions\"><button class=\"btn primary\" type=\"button\" onclick=\"activateBrowserNotifications()\">🔔 ${granted?'Notificações ativadas':'Ativar notificações'}</button><button class=\"btn ghost\" type=\"button\" onclick=\"sendBrowserNotificationTest()\" ${granted?'':'disabled'}>Enviar teste</button></div><div class=\"browser-notify-note\">Ao ativar, este aparelho é registrado para Push. “Enviar teste” agora solicita a notificação ao servidor, permitindo validar o recebimento mesmo com o MeuPet 360 fechado.</div></div>`;
+}
+
 function notificationsPage(){
  const el=document.getElementById('notificacoes');if(!el)return;const p=notifyPrefs();
  const row=(key,icon,title,sub)=>`<div class="notify-pref-row"><div><b>${icon} ${title}</b><div class="sub">${sub}</div></div><button class="notify-switch ${p[key]?'on':''}" onclick="toggleNotifyPref('${key}')" aria-label="${p[key]?'Desativar':'Ativar'} ${title}"></button></div>`;
- el.innerHTML=header('Notificações e lembretes','Escolha quais avisos você quer acompanhar.')+`<div class="notify-wrap"><button class="btn ghost config-back" onclick="go(window.innerWidth<=840?'mais':'configuracoes')">← <span class="config-back-label">Configurações</span></button><div class="notify-pref-card"><div class="notify-pref-intro"><div class="mini-title">Preferências de alertas</div><div class="sub">Os alertas aparecem no sino 🔔 da Central. Esta tela serve apenas para definir o que você deseja acompanhar.</div></div>${row('vacinas','💉','Vacinas','Avisos de próximas vacinas e vacinas atrasadas.')}${row('consultas','🩺','Consultas','Lembretes das consultas cadastradas.')}${row('cuidados','✂️','Cuidados','Banho, tosa e outros cuidados programados.')}${row('medicamentos','💊','Medicamentos','Avisos relacionados aos medicamentos cadastrados.')}<div class="notify-days"><div style="flex:1"><b>Antecedência preferida</b><div class="sub">Referência para os próximos alertas do app.</div></div><select onchange="setNotifyDays(this.value)"><option value="1" ${p.days===1?'selected':''}>1 dia</option><option value="3" ${p.days===3?'selected':''}>3 dias</option><option value="7" ${p.days===7?'selected':''}>7 dias</option><option value="14" ${p.days===14?'selected':''}>14 dias</option><option value="30" ${p.days===30?'selected':''}>30 dias</option></select></div></div></div>`;
+ el.innerHTML=header('Notificações e lembretes','Escolha quais avisos você quer acompanhar.')+`<div class="notify-wrap"><button class="btn ghost config-back" onclick="go(window.innerWidth<=840?'mais':'configuracoes')">← <span class="config-back-label">Configurações</span></button>${browserNotifyCard()}<div class="notify-pref-card"><div class="notify-pref-intro"><div class="mini-title">Preferências de alertas</div><div class="sub">Os alertas aparecem no sino 🔔 da Central. Esta tela serve apenas para definir o que você deseja acompanhar.</div></div>${row('vacinas','💉','Vacinas','Avisos de próximas vacinas e vacinas atrasadas.')}${row('consultas','🩺','Consultas','Lembretes das consultas cadastradas.')}${row('cuidados','✂️','Cuidados','Banho, tosa e outros cuidados programados.')}${row('medicamentos','💊','Medicamentos','Avisos relacionados aos medicamentos cadastrados.')}<div class="notify-days"><div style="flex:1"><b>Antecedência preferida</b><div class="sub">Referência para os próximos alertas do app.</div></div><select onchange="setNotifyDays(this.value)"><option value="1" ${p.days===1?'selected':''}>1 dia</option><option value="3" ${p.days===3?'selected':''}>3 dias</option><option value="7" ${p.days===7?'selected':''}>7 dias</option><option value="14" ${p.days===14?'selected':''}>14 dias</option><option value="30" ${p.days===30?'selected':''}>30 dias</option></select></div></div></div>`;
 }
 
 function renderAll(){central();petPage();healthPage();spendPage();morePage();backupPage();historyPage();settingsPage();notificationsPage();appearancePage();aboutPage();applyAppearance()}
